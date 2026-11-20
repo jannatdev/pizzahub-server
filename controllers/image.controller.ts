@@ -16,7 +16,7 @@ export const uploadProfileImage = async (
     }
 
     // Upload image to ImgBB
-    const imageUrl = await uploadToImgBB(req.file);
+    const { url: imageUrl } = await uploadToImgBB(req.file);
 
     // Send image URL to frontend
     return res.status(200).json({
@@ -33,6 +33,40 @@ export const uploadProfileImage = async (
         error instanceof Error
           ? error.message
           : "Image upload failed",
+    });
+  }
+};
+
+export const uploadMenuImage = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Menu image is required.",
+      });
+    }
+
+    // Same ImgBB service the profile upload uses — no duplicated logic.
+    const { url, displayUrl } = await uploadToImgBB(req.file);
+
+    return res.status(201).json({
+      success: true,
+      message: "Menu image uploaded successfully.",
+      imageUrl: url,
+      displayUrl,
+    });
+  } catch (error) {
+    console.error("Menu image upload error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Menu image upload failed.",
     });
   }
 };

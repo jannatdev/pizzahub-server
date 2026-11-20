@@ -5,12 +5,14 @@ export const upload = multer({
   storage: multer.memoryStorage(),
 
   limits: {
-    fileSize: 2 * 1024 * 1024,
+    // Matches the 5MB limit shown in the frontend upload UI.
+    fileSize: 5 * 1024 * 1024,
   },
 
   fileFilter: (_req, file, cb) => {
     const allowedTypes = [
       "image/jpeg",
+      "image/jpg",
       "image/png",
       "image/webp",
     ];
