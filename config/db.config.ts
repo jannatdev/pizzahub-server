@@ -45,7 +45,7 @@ try {
   process.exit(1);
 }
 
-const db = client.db(DB_NAME);
+export const db = client.db(DB_NAME);
 await ensureCollections(db);
 
 // Shared collections — import these from route/controller files.

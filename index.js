@@ -10,7 +10,10 @@ import { auth } from "./lib/auth.ts";
 
 import imageRoutes from "./route/image.route.ts";
 import menuRoutes from "./route/menu.route.ts";
+import adminMenuRoutes from "./route/adminMenu.route.ts";
 import paymentRoutes from "./route/payment.route.ts";
+import adminUserRoutes from "./route/adminUsers.route.ts";
+import browseMenuRoutes from "./route/browseMenu.route.ts";
 
 const app = express();
 const PORT = 8000;
@@ -34,6 +37,9 @@ app.use("/images", imageRoutes);
 
 app.use("/api/menu", menuRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/menu", adminMenuRoutes);
+app.use("/api/admin/users", adminUserRoutes);
+app.use("/api/browse-menu", browseMenuRoutes);
 
 app.get("/", (req, res) => {
   res.send({ message: "Server is running" });
