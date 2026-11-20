@@ -1,7 +1,7 @@
 
 import type { Request, Response } from "express";
 import { ObjectId } from "mongodb";
-import { menus } from "../config/db.config.ts";
+import { menus } from "../../config/db.config.ts";
 
 // Get all submitted menu items
 

@@ -4,7 +4,7 @@ import {
   getAllUsers,
   getUserById,
   getUserStats,
-} from "../controllers/adminManageUser.controller.ts";
+} from "../../controllers/admin/adminManageUser.controller.ts";
 
 
 

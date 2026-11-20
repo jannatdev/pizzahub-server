@@ -6,9 +6,9 @@ import {
   approveMenuItem,
   rejectMenuItem,
   deleteMenuItem
-} from "../controllers/adminMenuManage.controller.ts";
+} from "../../controllers/admin/adminMenuManage.controller.ts";
 
-import { attachSession } from "../middleware/auth.middleware.ts";
+import { attachSession } from "../../middleware/auth.middleware.ts";
 
 const router = express.Router();
 

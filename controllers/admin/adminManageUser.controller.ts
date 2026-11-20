@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { Db, ObjectId } from "mongodb";
-import { db } from "../config/db.config.ts";
+import { db } from "../../config/db.config.ts";
 
 const users = db.collection("user");
 
