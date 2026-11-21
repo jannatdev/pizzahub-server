@@ -15,6 +15,8 @@ import paymentRoutes from "./route/payment.route.ts";
 import adminUserRoutes from "./route/admin/adminUsers.route.ts";
 import browseMenuRoutes from "./route/browseMenu.route.ts";
 import adminOverviewRoutes from "./route/admin/adminOverview.route.ts";
+import singleMenuRoutes from "./route/singleMenu.route.ts";
+import orderRoutes from "./route/order.route.ts";
 
 const app = express();
 const PORT = 8000;
@@ -42,6 +44,8 @@ app.use("/api/menu", adminMenuRoutes);
 app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/browse-menu", browseMenuRoutes);
 app.use("/api/admin/overview", adminOverviewRoutes);
+app.use("/api/menu", singleMenuRoutes);
+app.use("/api/orders", orderRoutes);
 
 app.get("/", (req, res) => {
   res.send({ message: "Server is running" });

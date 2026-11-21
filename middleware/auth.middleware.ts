@@ -2,7 +2,6 @@
 import type { Request, Response, NextFunction } from "express";
 
 import { auth } from "../lib/auth.ts";
-
 /** The authenticated user attached to `req.user` by `attachSession`. */
 export type AuthUser = {
   id?: string;
@@ -35,24 +34,19 @@ function toWebHeaders(nodeHeaders: Request["headers"]): Headers {
   return headers;
 }
 
-/**
- * Resolves the Better Auth session cookie into `req.user`.
- *
- * A missing or invalid session leaves `req.user` unset instead of throwing, so
- * protected handlers can fail closed with 401. An unexpected error while
- * reading the session is logged and also treated as "not signed in".
- */
+
+
 export const attachSession = async (
   req: Request,
   _res: Response,
   next: NextFunction
 ) => {
   try {
-    const session = await auth.api.getSession({
+     const session = await auth.api.getSession({
       headers: toWebHeaders(req.headers),
     });
 
-    const user = session?.user as
+   const user = session?.user as
       | (AuthUser & { id?: string; email?: string; name?: string })
       | undefined;
 
@@ -69,4 +63,29 @@ export const attachSession = async (
   }
 
   return next();
+};
+
+/**
+ * Gate that requires a signed-in user.
+ *
+ * Runs `attachSession` first, then rejects with 401 when no session was
+ * attached. Controllers still receive `req.user` for role/ownership checks.
+ */
+export const requireAuth = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  attachSession(req, res, (err?: unknown) => {
+    if (err) return next(err);
+
+    if (!(req as AuthedRequest).user) {
+      return res.status(401).json({
+        success: false,
+        message: "You must be logged in.",
+      });
+    }
+
+    return next();
+  });
 };
