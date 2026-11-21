@@ -28,15 +28,49 @@ export const createOrder = async (
       });
     }
 
-    const { menuId, quantity = 1 } = req.body;
+    const {
+      menuId,
+      quantity = 1,
+      deliveryDate,
+      deliveryAddress,
+      additionalMessage,
+    } = req.body;
 
-    // Validate menuId
-    if (!menuId || !ObjectId.isValid(menuId)) {
+    // Validate menuId (invalid/missing ids must be a 400, not a 500 from the
+    // ObjectId constructor blowing up below).
+    if (!menuId || typeof menuId !== "string" || !ObjectId.isValid(menuId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid menu item ID.",
       });
     }
+
+    // Validate delivery date + address (required by the order form)
+    if (typeof deliveryAddress !== "string" || !deliveryAddress.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Delivery date and address are required.",
+      });
+    }
+
+    const parsedDeliveryDate = new Date(deliveryDate);
+
+    if (!deliveryDate || Number.isNaN(parsedDeliveryDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid delivery date is required.",
+      });
+    }
+
+    // Normalize to UTC midnight of the calendar day so duplicate checks and
+    // stored values compare deterministically.
+    const deliveryDateDay = new Date(
+      Date.UTC(
+        parsedDeliveryDate.getUTCFullYear(),
+        parsedDeliveryDate.getUTCMonth(),
+        parsedDeliveryDate.getUTCDate()
+      )
+    );
 
     // Validate quantity
     if (
@@ -105,36 +139,58 @@ export const createOrder = async (
 
     const totalPrice = price * quantity;
 
-    const order = {
-      menuId: menuItem._id,
-
-      // Customer information comes from authenticated user
+    // Phase 16: one active order per customer per item per delivery date.
+    const duplicate = await orders.findOne({
       customerId: user.id,
-      customerName: user.name || "",
-      customerEmail: user.email,
+      menuId: menuItem._id,
+      deliveryDate: deliveryDateDay,
+      status: { $in: ["Pending", "Accepted"] },
+    });
 
-      // Vendor information comes from menu item
-      vendorId: menuItem.vendorId || menuItem.createdById,
-      vendorName:
-        menuItem.vendorName ||
-        menuItem.createdByName ||
-        "",
-      vendorEmail:
-        menuItem.vendorEmail ||
-        menuItem.createdByEmail ||
-        "",
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "You already have an active order for this item on that delivery date.",
+      });
+    }
 
-      // Item information comes from database
-      itemName: menuItem.itemName,
-      price,
-      quantity,
-      totalPrice,
+  const order = {
+  menuId: menuItem._id,
 
-      status: "Pending",
+  customerId: user.id,
+  customerName: user.name || "",
+  customerEmail: user.email,
 
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+  vendorId: menuItem.vendorId || menuItem.createdById,
+  vendorName:
+    menuItem.vendorName ||
+    menuItem.createdByName ||
+    "",
+  vendorEmail:
+    menuItem.vendorEmail ||
+    menuItem.createdByEmail ||
+    "",
+
+  itemName: menuItem.itemName,
+  itemImage: menuItem.images?.[0] || "",
+
+  price,
+  quantity,
+  totalPrice,
+
+  deliveryDate: deliveryDateDay,
+  deliveryAddress: deliveryAddress.trim(),
+  additionalMessage:
+    typeof additionalMessage === "string"
+      ? additionalMessage.trim().slice(0, 500)
+      : "",
+
+  status: "Pending",
+
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
 
     const result = await orders.insertOne(order);
 
@@ -258,6 +314,87 @@ export const getOrderById = async (
     return res.status(500).json({
       success: false,
       message: "Failed to fetch order.",
+    });
+  }
+};
+
+export const cancelOrder = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const user = (req as AuthedRequest).user;
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "You must be logged in.",
+      });
+    }
+
+    if (user.role !== "customer") {
+      return res.status(403).json({
+        success: false,
+        message: "Only customers can cancel orders.",
+      });
+    }
+
+    const { id } = req.params;
+
+    if (typeof id !== "string" || !ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid order ID.",
+      });
+    }
+
+    const result = await orders.findOneAndUpdate(
+      {
+        _id: new ObjectId(id),
+        customerId: user.id,
+        status: "Pending",
+      },
+      {
+        $set: {
+          status: "Cancelled",
+          updatedAt: new Date(),
+        },
+      },
+      {
+        returnDocument: "after",
+      }
+    );
+
+    if (!result) {
+      const existingOrder = await orders.findOne({
+        _id: new ObjectId(id),
+        customerId: user.id,
+      });
+
+      if (!existingOrder) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found.",
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: `You cannot cancel an order with ${existingOrder.status} status.`,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Order cancelled successfully.",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Cancel order error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to cancel order.",
     });
   }
 };

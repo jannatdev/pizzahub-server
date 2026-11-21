@@ -4,6 +4,7 @@ import {
   createOrder,
    getMyOrders,
   getOrderById,
+   cancelOrder,
 } from "../controllers/order.controller.ts";
 
 import { requireAuth } from "../middleware/auth.middleware.ts";
@@ -27,6 +28,10 @@ router.get(
   requireAuth,
   getOrderById
 );
+
+
+router.patch("/:id/cancel", requireAuth, cancelOrder);
+
 export default router;
 
 // 

@@ -58,4 +58,4 @@ export const users = db.collection("user");
 export const menus = db.collection("menus");
 export const orders = db.collection("orders");
 export const payments = db.collection("payments");
-export const transactions = db.collection("transactions");
+

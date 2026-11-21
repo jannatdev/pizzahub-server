@@ -194,34 +194,23 @@ export const createMenuItem = async (
     }
 
     // 9. Subscription verification
-    // FIXED: Read premium status from MongoDB
+    // Existing vendors without a subscription are treated as Free
     const subscription = vendor.subscription ?? "free";
     const isPremium = subscription === "premium";
 
-    console.log("========== MENU ACCESS ==========");
-    console.log("Vendor:", vendor.email);
-    console.log("Subscription:", subscription);
-    console.log("Is Premium:", isPremium);
-
-    // 10. Enforce free menu limit
-    // FIXED: Premium vendors skip this check
+    
     if (!isPremium) {
       const activeMenuCount = await menus.countDocuments({
         vendorId: vendor._id,
-        status: {
-          $in: ["Pending", "Approved"],
-        },
+        status: "Approved",
       });
-
-      console.log("Active Menu Count:", activeMenuCount);
-      console.log("Free Menu Limit:", FREE_MENU_LIMIT);
 
       if (activeMenuCount >= FREE_MENU_LIMIT) {
         return res.status(403).json({
           success: false,
           code: "MENU_LIMIT_REACHED",
           message:
-            "You have reached your free limit of 3 menu items. Upgrade to Premium to add more.",
+            "You have reached the maximum of 3 active menu items on the Free plan. Upgrade to Premium to add unlimited menu items.",
           count: activeMenuCount,
           freeLimit: FREE_MENU_LIMIT,
           subscription,

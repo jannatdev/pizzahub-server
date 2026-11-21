@@ -12,12 +12,16 @@ import imageRoutes from "./route/image.route.ts";
 import menuRoutes from "./route/menu.route.ts";
 import adminMenuRoutes from "./route/admin/adminMenu.route.ts";
 import vendorMenuManageRoutes from "./route/vendor/vendorManageMenu.route.ts";
+import vendorOrderRoutes from "./route/vendor/vendorManageOrder.route.ts";
+
 import paymentRoutes from "./route/payment.route.ts";
 import adminUserRoutes from "./route/admin/adminUsers.route.ts";
 import browseMenuRoutes from "./route/browseMenu.route.ts";
 import adminOverviewRoutes from "./route/admin/adminOverview.route.ts";
 import singleMenuRoutes from "./route/singleMenu.route.ts";
 import orderRoutes from "./route/order.route.ts";
+import subscriptionRoutes from "./route/vendor/subscription.route.ts";
+
 
 
 const app = express();
@@ -49,6 +53,9 @@ app.use("/api/admin/overview", adminOverviewRoutes);
 app.use("/api/menu", singleMenuRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/vendor/menu", vendorMenuManageRoutes);
+app.use("/vendor/orders", vendorOrderRoutes);
+app.use("/vendor", subscriptionRoutes);
+
 
 app.get("/", (req, res) => {
   res.send({ message: "Server is running" });
