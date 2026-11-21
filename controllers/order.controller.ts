@@ -228,7 +228,7 @@ export const getOrderById = async (
 
     const { id } = req.params;
 
-    if (!id || !ObjectId.isValid(id)) {
+    if (typeof id !== "string" || !ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
         message: "Invalid order ID.",
