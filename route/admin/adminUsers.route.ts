@@ -1,4 +1,5 @@
-import express from "express";
+
+import { Router } from "express";
 
 import {
   getAllUsers,
@@ -6,20 +7,18 @@ import {
   getUserStats,
 } from "../../controllers/admin/adminManageUser.controller.ts";
 
+import {
+  authenticate,
+  authorizeRoles,
+} from "../../middleware/auth.middleware.ts";
 
+const router = Router();
 
-const router = express.Router();
+// All routes below require an authenticated admin
+router.use(authenticate, authorizeRoles("admin"));
 
-// All routes require admin
-
-
-// Get users
-router.get("/", getAllUsers);
-
-// Get statistics
-router.get("/stats", getUserStats);
-
-// Get single user
-router.get("/:id", getUserById);
+router.get("/users", getAllUsers);
+router.get("/users/stats", getUserStats);
+router.get("/users/:id", getUserById);
 
 export default router;

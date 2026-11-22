@@ -1,5 +1,6 @@
+
 import type { Request, Response } from "express";
-import { Db, ObjectId } from "mongodb";
+import { ObjectId } from "mongodb";
 import { db } from "../../config/db.config.ts";
 
 const users = db.collection("user");
@@ -21,7 +22,6 @@ export const getAllUsers = async (
 
     const filter: Record<string, any> = {};
 
-    // Search by name or email
     if (search) {
       const safeSearch = search.replace(
         /[.*+?^${}()|[\]\\]/g,
@@ -29,22 +29,11 @@ export const getAllUsers = async (
       );
 
       filter.$or = [
-        {
-          name: {
-            $regex: safeSearch,
-            $options: "i",
-          },
-        },
-        {
-          email: {
-            $regex: safeSearch,
-            $options: "i",
-          },
-        },
+        { name: { $regex: safeSearch, $options: "i" } },
+        { email: { $regex: safeSearch, $options: "i" } },
       ];
     }
 
-    // Filter by role
     if (role !== "all") {
       if (!["customer", "vendor", "admin"].includes(role)) {
         return res.status(400).json({
@@ -108,6 +97,7 @@ export const getUserById = async (
 ) => {
   try {
     const id = String(req.params.id);
+
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -116,9 +106,7 @@ export const getUserById = async (
     }
 
     const user = await users.findOne(
-      {
-        _id: new ObjectId(id),
-      },
+      { _id: new ObjectId(id) },
       {
         projection: {
           name: 1,

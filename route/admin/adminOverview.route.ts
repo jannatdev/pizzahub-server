@@ -1,11 +1,18 @@
-import express from "express";
+
+import { Router } from "express";
+
+import { getAdminOverview } from "../../controllers/admin/adminOverview.controller.ts";
 
 import {
-  getAdminOverview,
-} from "../../controllers/admin/adminOverview.controller.ts";
+  authenticate,
+  authorizeRoles,
+} from "../../middleware/auth.middleware.ts";
 
-const router = express.Router();
+const router = Router();
 
-router.get("/stats", getAdminOverview);
+router.use(authenticate, authorizeRoles("admin"));
+
+router.get("/overview", getAdminOverview);
 
 export default router;
+

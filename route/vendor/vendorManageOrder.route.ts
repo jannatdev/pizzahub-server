@@ -1,20 +1,26 @@
 
-import express from "express";
+import { Router } from "express";
 
 import {
   getVendorOrders,
   updateVendorOrderStatus,
 } from "../../controllers/vendor/vendorManageOrder.controller.ts";
 
-import { requireAuth } from "../../middleware/auth.middleware.ts";
+import {
+  authenticate,
+  authorizeRoles,
+} from "../../middleware/auth.middleware.ts";
 
-const router = express.Router();
+const router = Router();
 
-// Vendor: Get all received orders
-router.get("/vendor", requireAuth, getVendorOrders);
+// All routes require an authenticated vendor
+router.use(authenticate, authorizeRoles("vendor"));
 
-// Vendor: Accept or Reject an order
-router.patch("/:id/status", requireAuth, updateVendorOrderStatus);
+// Get vendor orders
+router.get("/orders", getVendorOrders);
 
-// IMPORTANT: Default export
+// Update order status
+router.patch("/orders/:id/status", updateVendorOrderStatus);
+
 export default router;
+

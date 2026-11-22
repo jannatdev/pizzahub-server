@@ -23,6 +23,17 @@ const db = client.db("pizza-hub");
 
 export type UserRole = "customer" | "vendor" | "admin";
 
+/**
+ * Origins allowed to call Better Auth. Anything else is rejected with 403
+ * INVALID_ORIGIN, so both loopback spellings of the dev server are listed —
+ * opening the site as 127.0.0.1:3000 must not make sign-in/sign-up fail.
+ */
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+].filter((origin): origin is string => Boolean(origin));
+
 export const auth = betterAuth({
   database: mongodbAdapter(db, { client }),
 
@@ -30,9 +41,7 @@ export const auth = betterAuth({
 
   // secret: process.env.BETTER_AUTH_SECRET,
 
-  trustedOrigins: [
-    process.env.CLIENT_URL || "http://localhost:3000",
-  ],
+  trustedOrigins: [...new Set(allowedOrigins)],
 
   emailAndPassword: {
     enabled: true,

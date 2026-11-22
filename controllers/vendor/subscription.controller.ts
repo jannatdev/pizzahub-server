@@ -1,78 +1,68 @@
+
 import type { Request, Response } from "express";
 
 import { users, menus } from "../../config/db.config.ts";
-import type {  AuthedRequest } from "../../middleware/auth.middleware.ts";
+import type { AuthedRequest } from "../../middleware/auth.middleware.ts";
 
 const FREE_MENU_LIMIT = 3;
 
 export const getVendorSubscription = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
   try {
-    // 1. Authentication
-    const authUser = (req as  AuthedRequest).user;
+    // Get authenticated vendor from JWT middleware
+    const authUser = (req as AuthedRequest).user;
 
     if (!authUser?.email) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "You must be logged in.",
       });
+      return;
     }
 
-    // 2. Vendor role verification
-    if (authUser.role !== "vendor") {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Only vendors can access subscription information.",
-      });
-    }
-
-    // 3. Find logged-in vendor
+    // Find logged-in vendor
     const vendor = await users.findOne({
       email: authUser.email,
+      role: "vendor",
     });
 
     if (!vendor) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: "Vendor account not found.",
       });
+      return;
     }
 
-    // 4. Get subscription
-    // Existing vendors without subscription are treated as Free
+    // Get subscription (default: Free)
     const subscription = vendor.subscription ?? "free";
 
     const isPremium = subscription === "premium";
 
-    // 5. Count active menu items
-    // Only Approved menus are considered active
+    // Count approved menu items
     const activeMenuItems = await menus.countDocuments({
       vendorId: vendor._id,
       status: "Approved",
     });
 
-    // 6. Menu limit
+    // Menu limit
     const menuLimit = isPremium ? null : FREE_MENU_LIMIT;
 
-    // 7. Can vendor add another active menu?
-    const canAddMenu = isPremium || activeMenuItems < FREE_MENU_LIMIT;
+    // Check menu creation permission
+    const canAddMenu =
+      isPremium || activeMenuItems < FREE_MENU_LIMIT;
 
-    // 8. Response
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: {
         plan: subscription,
         planName: isPremium ? "Premium" : "Free",
 
         activeMenuItems,
-
         menuLimit,
-
         isPremium,
-
         canAddMenu,
 
         features: isPremium
@@ -91,15 +81,11 @@ export const getVendorSubscription = async (
       },
     });
   } catch (error) {
-    console.error(
-      "Get vendor subscription error:",
-      error
-    );
+    console.error("Get vendor subscription error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-      message:
-        "Failed to fetch subscription information.",
+      message: "Failed to fetch subscription information.",
     });
   }
 };

@@ -24,22 +24,17 @@ const getVendorIdValues = (vendorId: string) => {
 export const getVendorOrders = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
   try {
+    // Get authenticated vendor from JWT middleware
     const user = (req as AuthedRequest).user;
 
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "You must be logged in.",
       });
-    }
-
-    if (user.role !== "vendor") {
-      return res.status(403).json({
-        success: false,
-        message: "Only vendors can access vendor orders.",
-      });
+      return;
     }
 
     const vendorId = String(user.id);
@@ -52,7 +47,7 @@ export const getVendorOrders = async (
       .sort({ createdAt: -1 })
       .toArray();
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "Vendor orders fetched successfully.",
       data: vendorOrders,
@@ -60,7 +55,7 @@ export const getVendorOrders = async (
   } catch (error) {
     console.error("Get vendor orders error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to fetch vendor orders.",
     });
@@ -73,47 +68,45 @@ export const getVendorOrders = async (
 export const updateVendorOrderStatus = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
   try {
+    // Get authenticated vendor from JWT middleware
     const user = (req as AuthedRequest).user;
 
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "You must be logged in.",
       });
-    }
-
-    if (user.role !== "vendor") {
-      return res.status(403).json({
-        success: false,
-        message: "Only vendors can update order status.",
-      });
+      return;
     }
 
     const id = String(req.params.id);
     const status = req.body.status;
 
     if (!ObjectId.isValid(id)) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: "Invalid order ID.",
       });
+      return;
     }
 
     if (
       typeof status !== "string" ||
       !["Accepted", "Rejected"].includes(status)
     ) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: "Status must be Accepted or Rejected.",
       });
+      return;
     }
 
     const vendorId = String(user.id);
     const vendorIds = getVendorIdValues(vendorId);
 
+    // Ownership check: only this vendor's pending order can be updated
     const result = await orders.updateOne(
       {
         _id: new ObjectId(id),
@@ -129,21 +122,22 @@ export const updateVendorOrderStatus = async (
     );
 
     if (result.matchedCount === 0) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message:
           "Order not found, does not belong to you, or is no longer pending.",
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: `Order ${status.toLowerCase()} successfully.`,
     });
   } catch (error) {
     console.error("Update vendor order status error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to update order status.",
     });

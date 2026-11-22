@@ -7,20 +7,23 @@ import {
   getVendorPremium,
 } from "../controllers/menu.controller.ts";
 
-import { attachSession } from "../middleware/auth.middleware.ts";
+import {  authenticate, authorizeRoles } from "../middleware/auth.middleware.ts";
 
 const router = express.Router();
 
 router.get(
   "/vendor/count",
-  attachSession,
+  authenticate,
+    authorizeRoles("vendor", "admin"),
   getVendorMenuCount
 );
 
-router.post("/:email", attachSession, createMenuItem);
+router.post("/:email", authenticate,
+  authorizeRoles("vendor", "admin"), createMenuItem);
 router.get(
   "/vendor/premium-status",
-  attachSession,
+  authenticate,
+  authorizeRoles("vendor", "admin"),
   getVendorPremium
 );
 

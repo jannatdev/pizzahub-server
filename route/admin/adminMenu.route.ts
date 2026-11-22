@@ -1,22 +1,32 @@
-
-import express from "express";
+import { Router } from "express";
 
 import {
   getAllMenuItems,
   approveMenuItem,
   rejectMenuItem,
-  deleteMenuItem
+  deleteMenuItem,
 } from "../../controllers/admin/adminMenuManage.controller.ts";
 
-import { attachSession } from "../../middleware/auth.middleware.ts";
+import {
+  authenticate,
+  authorizeRoles,
+} from "../../middleware/auth.middleware.ts";
 
-const router = express.Router();
+const router = Router();
 
-router.get("/all", attachSession, getAllMenuItems);
+// All routes below require an authenticated admin
+router.use(authenticate, authorizeRoles("admin"));
 
-router.patch("/:id/approve", attachSession, approveMenuItem);
+// Get all submitted menus
+router.get("/menus", getAllMenuItems);
 
-router.patch("/:id/reject", attachSession, rejectMenuItem);
-router.delete("/:id/delete", attachSession, deleteMenuItem);
+// Approve menu
+router.patch("/menus/:id/approve", approveMenuItem);
+
+// Reject menu
+router.patch("/menus/:id/reject", rejectMenuItem);
+
+// Delete menu
+router.delete("/menus/:id", deleteMenuItem);
 
 export default router;

@@ -1,4 +1,5 @@
-import express from "express";
+
+import { Router } from "express";
 
 import {
   getMyMenuItems,
@@ -8,29 +9,29 @@ import {
   updateMenuAvailability,
 } from "../../controllers/vendor/vendorManageMenu.controller.ts";
 
-import { attachSession } from "../../middleware/auth.middleware.ts";
+import {
+  authenticate,
+  authorizeRoles,
+} from "../../middleware/auth.middleware.ts";
 
-const router = express.Router();
+const router = Router();
 
-// Authenticate all vendor requests
-router.use(attachSession);
+// All routes require an authenticated vendor
+router.use(authenticate, authorizeRoles("vendor"));
 
-// GET: All vendor menu items
-router.get("/my-items", getMyMenuItems);
+// Get all vendor menu items
+router.get("/menus", getMyMenuItems);
 
-// GET: Single menu item
-router.get("/my-items/:id", getMyMenuItemById);
+// Get one vendor menu item
+router.get("/menus/:id", getMyMenuItemById);
 
-// PATCH: Update menu item
-router.patch("/my-items/:id", updateMyMenuItem);
+// Update menu item
+router.patch("/menus/:id", updateMyMenuItem);
 
-// DELETE: Delete menu item
-router.delete("/my-items/:id", deleteMyMenuItem);
+// Delete menu item
+router.delete("/menus/:id", deleteMyMenuItem);
 
-// PATCH: Manage availability
-router.patch(
-  "/my-items/:id/availability",
-  updateMenuAvailability
-);
+// Update menu availability
+router.patch("/menus/:id/availability", updateMenuAvailability);
 
 export default router;

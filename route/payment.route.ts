@@ -1,7 +1,7 @@
 
 import express from "express";
 import Stripe from "stripe"; 
-import { payments, users } from "../config/db.config.ts"; 
+import { transactions, users } from "../config/db.config.ts"; 
 import { ObjectId } from "mongodb";
 
 const router = express.Router();
@@ -55,7 +55,7 @@ router.post("/checkout_verify", async (req, res) => {
     // refreshed without inserting duplicates.
     let paymentId: unknown;
 
-    const existingPayment = await payments.findOne({ sessionId });
+    const existingPayment = await transactions.findOne({ sessionId });
 
     if (existingPayment) {
       paymentId = existingPayment._id;
@@ -70,7 +70,7 @@ router.post("/checkout_verify", async (req, res) => {
         payment_intent,
       };
 
-      const result = await payments.insertOne(payment);
+      const result = await transactions.insertOne(payment);
       paymentId = result.insertedId;
     }
 

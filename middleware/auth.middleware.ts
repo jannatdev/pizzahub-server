@@ -1,91 +1,176 @@
 
-import type { Request, Response, NextFunction } from "express";
+import type {
+  Request,
+  Response,
+  NextFunction,
+} from "express";
 
-import { auth } from "../lib/auth.ts";
-/** The authenticated user attached to `req.user` by `attachSession`. */
+import {
+  createRemoteJWKSet,
+  jwtVerify,
+} from "jose";
+
+// --------------------------------------
+// 1. Types
+// --------------------------------------
+
+export type UserRole = "admin" | "vendor" | "customer";
+
 export type AuthUser = {
-  id?: string;
-  email?: string;
+  id: string;
+  email: string;
   name?: string;
-  role?: string;
+  role: UserRole;
 };
 
-/** `Request` with the resolved session user (undefined when signed out). */
-export type AuthedRequest = Request & { user?: AuthUser };
+export type AuthedRequest = Request & {
+  user?: AuthUser;
+};
 
-/**
- * Builds a web `Headers` object from Node's `req.headers`.
- * Node allows `string[]` header values, which `Headers` rejects, so multi-value
- * headers are appended one by one.
- */
-function toWebHeaders(nodeHeaders: Request["headers"]): Headers {
-  const headers = new Headers();
+// --------------------------------------
+// 2. Better Auth JWT configuration
+// --------------------------------------
 
-  for (const [key, value] of Object.entries(nodeHeaders)) {
-    if (value === undefined) continue;
+const AUTH_URL = process.env.BETTER_AUTH_URL;
 
-    if (Array.isArray(value)) {
-      for (const item of value) headers.append(key, item);
-    } else {
-      headers.append(key, value);
-    }
-  }
-
-  return headers;
+if (!AUTH_URL) {
+  throw new Error("BETTER_AUTH_URL is missing.");
 }
 
+const AUTH_ISSUER = AUTH_URL.replace(/\/$/, "");
 
+const AUTH_AUDIENCE =
+  process.env.BETTER_AUTH_AUDIENCE || AUTH_ISSUER;
 
-export const attachSession = async (
-  req: Request,
-  _res: Response,
-  next: NextFunction
-) => {
-  try {
-     const session = await auth.api.getSession({
-      headers: toWebHeaders(req.headers),
-    });
+// Create JWKS once and reuse it.
+// jose automatically caches remote public keys.
+const JWKS = createRemoteJWKSet(
+  new URL(`${AUTH_ISSUER}/api/auth/jwks`)
+);
 
-   const user = session?.user as
-      | (AuthUser & { id?: string; email?: string; name?: string })
-      | undefined;
+// --------------------------------------
+// 3. Verify JWT middleware
+// --------------------------------------
 
-    if (user) {
-      (req as AuthedRequest).user = {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      };
-    }
-  } catch (error) {
-    console.error("Could not read auth session:", error);
-  }
-
-  return next();
-};
-
-/**
- * Gate that requires a signed-in user.
- *
- * Runs `attachSession` first, then rejects with 401 when no session was
- * attached. Controllers still receive `req.user` for role/ownership checks.
- */
-export const requireAuth = (
+export const authenticate = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  attachSession(req, res, (err?: unknown) => {
-    if (err) return next(err);
+  try {
+    const authHeader = req.headers.authorization;
 
-    if (!(req as AuthedRequest).user) {
+    // Missing token
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication token is required.",
+      });
+    }
+
+    // Validate Bearer format
+    const [scheme, token, ...extra] = authHeader.trim().split(/\s+/);
+
+    if (
+      scheme?.toLowerCase() !== "bearer" ||
+      !token ||
+      extra.length > 0
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authorization format.",
+      });
+    }
+
+    // Verify signature, expiration, issuer and audience
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: AUTH_ISSUER,
+      audience: AUTH_AUDIENCE,
+    });
+
+    // JWT must have a subject (user ID)
+    if (!payload.sub) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authentication token.",
+      });
+    }
+
+    // Validate role
+    const allowedRoles: UserRole[] = [
+      "admin",
+      "vendor",
+      "customer",
+    ];
+
+    if (
+      !payload.role ||
+      !allowedRoles.includes(payload.role as UserRole)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Invalid or unauthorized user role.",
+      });
+    }
+
+    // Attach verified identity to request
+    (req as AuthedRequest).user = {
+      id: payload.sub,
+      email: typeof payload.email === "string"
+        ? payload.email
+        : "",
+      name: typeof payload.name === "string"
+        ? payload.name
+        : undefined,
+      role: payload.role as UserRole,
+    };
+
+    return next();
+
+  } catch (error) {
+    console.error("JWT verification failed:", error);
+
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired authentication token.",
+    });
+  }
+};
+
+// --------------------------------------
+// 4. Role-based middleware
+// --------------------------------------
+
+export const authorizeRoles = (
+  ...roles: UserRole[]
+) => {
+  return (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const user = (req as AuthedRequest).user;
+
+    if (!user) {
       return res.status(401).json({
         success: false,
         message: "You must be logged in.",
       });
     }
 
+    if (!roles.includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have permission to perform this action.",
+      });
+    }
+
     return next();
-  });
+  };
 };
+
+// --------------------------------------
+// 5. Backward-compatible middleware name
+// --------------------------------------
+
+export const requireAuth = authenticate;
