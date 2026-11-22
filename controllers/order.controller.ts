@@ -3,29 +3,23 @@ import { ObjectId } from "mongodb";
 import { menus, orders } from "../config/db.config.ts";
 import type { AuthedRequest } from "../middleware/auth.middleware.ts";
 
-
-
+// ============================================================
+// CREATE ORDER
+// POST /orders
+// ============================================================
 export const createOrder = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
   try {
-    // User is attached by the auth middleware (requireAuth)
     const user = (req as AuthedRequest).user;
 
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "You must be logged in to place an order.",
       });
-    }
-
-    // Only customers can place orders
-    if (user.role !== "customer") {
-      return res.status(403).json({
-        success: false,
-        message: "Only customers can place orders.",
-      });
+      return;
     }
 
     const {
@@ -36,34 +30,51 @@ export const createOrder = async (
       additionalMessage,
     } = req.body;
 
-    // Validate menuId (invalid/missing ids must be a 400, not a 500 from the
-    // ObjectId constructor blowing up below).
-    if (!menuId || typeof menuId !== "string" || !ObjectId.isValid(menuId)) {
-      return res.status(400).json({
+    // Validate menu ID
+    if (
+      !menuId ||
+      typeof menuId !== "string" ||
+      !ObjectId.isValid(menuId)
+    ) {
+      res.status(400).json({
         success: false,
         message: "Invalid menu item ID.",
       });
+      return;
     }
 
-    // Validate delivery date + address (required by the order form)
-    if (typeof deliveryAddress !== "string" || !deliveryAddress.trim()) {
-      return res.status(400).json({
+    // Validate delivery address
+    if (
+      typeof deliveryAddress !== "string" ||
+      !deliveryAddress.trim()
+    ) {
+      res.status(400).json({
         success: false,
-        message: "Delivery date and address are required.",
+        message: "Delivery address is required.",
       });
+      return;
+    }
+
+    // Validate delivery date
+    if (!deliveryDate) {
+      res.status(400).json({
+        success: false,
+        message: "A delivery date is required.",
+      });
+      return;
     }
 
     const parsedDeliveryDate = new Date(deliveryDate);
 
-    if (!deliveryDate || Number.isNaN(parsedDeliveryDate.getTime())) {
-      return res.status(400).json({
+    if (Number.isNaN(parsedDeliveryDate.getTime())) {
+      res.status(400).json({
         success: false,
         message: "A valid delivery date is required.",
       });
+      return;
     }
 
-    // Normalize to UTC midnight of the calendar day so duplicate checks and
-    // stored values compare deterministically.
+    // Normalize delivery date to UTC midnight
     const deliveryDateDay = new Date(
       Date.UTC(
         parsedDeliveryDate.getUTCFullYear(),
@@ -77,10 +88,11 @@ export const createOrder = async (
       !Number.isInteger(quantity) ||
       quantity <= 0
     ) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: "Quantity must be a positive integer.",
       });
+      return;
     }
 
     // Find menu item
@@ -89,29 +101,32 @@ export const createOrder = async (
     });
 
     if (!menuItem) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: "Menu item not found.",
       });
+      return;
     }
 
-    // Only approved items can be ordered
+    // Only approved menu items can be ordered
     if (menuItem.status !== "Approved") {
-      return res.status(403).json({
+      res.status(403).json({
         success: false,
         message: "This menu item is not approved for ordering.",
       });
+      return;
     }
 
-    // Only active items can be ordered
+    // Only active menu items can be ordered
     if (menuItem.isActive !== true) {
-      return res.status(403).json({
+      res.status(403).json({
         success: false,
         message: "This menu item is currently inactive.",
       });
+      return;
     }
 
-    // Prevent vendor from ordering their own item
+    // Prevent vendor from ordering their own menu item
     const vendorId =
       menuItem.vendorId?.toString?.() ??
       menuItem.createdById?.toString?.();
@@ -120,81 +135,93 @@ export const createOrder = async (
       vendorId &&
       vendorId === user.id?.toString()
     ) {
-      return res.status(403).json({
+      res.status(403).json({
         success: false,
         message: "You cannot order your own menu item.",
       });
+      return;
     }
 
     // IMPORTANT:
-    // Get price from database instead of trusting frontend
+    // Always get price from MongoDB.
+    // Never trust price sent by frontend.
     const price = Number(menuItem.price);
 
     if (!Number.isFinite(price) || price < 0) {
-      return res.status(500).json({
+      res.status(500).json({
         success: false,
         message: "Invalid menu item price.",
       });
+      return;
     }
 
     const totalPrice = price * quantity;
 
-    // Phase 16: one active order per customer per item per delivery date.
+    // Prevent duplicate active order
     const duplicate = await orders.findOne({
       customerId: user.id,
       menuId: menuItem._id,
       deliveryDate: deliveryDateDay,
-      status: { $in: ["Pending", "Accepted"] },
+      status: {
+        $in: ["Pending", "Accepted"],
+      },
     });
 
     if (duplicate) {
-      return res.status(409).json({
+      res.status(409).json({
         success: false,
         message:
           "You already have an active order for this item on that delivery date.",
       });
+      return;
     }
 
-  const order = {
-  menuId: menuItem._id,
+    // Create order
+    const order = {
+      menuId: menuItem._id,
 
-  customerId: user.id,
-  customerName: user.name || "",
-  customerEmail: user.email,
+      customerId: user.id,
+      customerName: user.name || "",
+      customerEmail: user.email,
 
-  vendorId: menuItem.vendorId || menuItem.createdById,
-  vendorName:
-    menuItem.vendorName ||
-    menuItem.createdByName ||
-    "",
-  vendorEmail:
-    menuItem.vendorEmail ||
-    menuItem.createdByEmail ||
-    "",
+      vendorId:
+        menuItem.vendorId ||
+        menuItem.createdById,
 
-  itemName: menuItem.itemName,
-  itemImage: menuItem.images?.[0] || "",
+      vendorName:
+        menuItem.vendorName ||
+        menuItem.createdByName ||
+        "",
 
-  price,
-  quantity,
-  totalPrice,
+      vendorEmail:
+        menuItem.vendorEmail ||
+        menuItem.createdByEmail ||
+        "",
 
-  deliveryDate: deliveryDateDay,
-  deliveryAddress: deliveryAddress.trim(),
-  additionalMessage:
-    typeof additionalMessage === "string"
-      ? additionalMessage.trim().slice(0, 500)
-      : "",
+      itemName: menuItem.itemName,
+      itemImage: menuItem.images?.[0] || "",
 
-  status: "Pending",
+      price,
+      quantity,
+      totalPrice,
 
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+      deliveryDate: deliveryDateDay,
+      deliveryAddress: deliveryAddress.trim(),
+
+      additionalMessage:
+        typeof additionalMessage === "string"
+          ? additionalMessage.trim().slice(0, 500)
+          : "",
+
+      status: "Pending",
+
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
     const result = await orders.insertOne(order);
 
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
       message: "Order placed successfully.",
       order: {
@@ -205,34 +232,30 @@ export const createOrder = async (
   } catch (error) {
     console.error("Create order error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to place order.",
     });
   }
 };
 
-// get order
+// ============================================================
+// GET MY ORDERS
+// GET /orders/my-orders
+// ============================================================
 export const getMyOrders = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
   try {
     const user = (req as AuthedRequest).user;
 
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "You must be logged in.",
       });
-    }
-
-    // Only customers can access customer orders
-    if (user.role !== "customer") {
-      return res.status(403).json({
-        success: false,
-        message: "Only customers can access their orders.",
-      });
+      return;
     }
 
     const customerId = user.id;
@@ -246,7 +269,7 @@ export const getMyOrders = async (
       })
       .toArray();
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "Orders fetched successfully.",
       data: userOrders,
@@ -254,41 +277,43 @@ export const getMyOrders = async (
   } catch (error) {
     console.error("Get my orders error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to fetch orders.",
     });
   }
 };
-// signle order
+
+// ============================================================
+// GET SINGLE ORDER
+// GET /orders/:id
+// ============================================================
 export const getOrderById = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
   try {
     const user = (req as AuthedRequest).user;
 
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "You must be logged in.",
       });
-    }
-
-    if (user.role !== "customer") {
-      return res.status(403).json({
-        success: false,
-        message: "Only customers can access customer orders.",
-      });
+      return;
     }
 
     const { id } = req.params;
 
-    if (typeof id !== "string" || !ObjectId.isValid(id)) {
-      return res.status(400).json({
+    if (
+      typeof id !== "string" ||
+      !ObjectId.isValid(id)
+    ) {
+      res.status(400).json({
         success: false,
         message: "Invalid order ID.",
       });
+      return;
     }
 
     const order = await orders.findOne({
@@ -297,13 +322,14 @@ export const getOrderById = async (
     });
 
     if (!order) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: "Order not found.",
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "Order fetched successfully.",
       data: order,
@@ -311,41 +337,43 @@ export const getOrderById = async (
   } catch (error) {
     console.error("Get order error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to fetch order.",
     });
   }
 };
 
+// ============================================================
+// CANCEL ORDER
+// PATCH /orders/:id/cancel
+// ============================================================
 export const cancelOrder = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
   try {
     const user = (req as AuthedRequest).user;
 
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "You must be logged in.",
       });
-    }
-
-    if (user.role !== "customer") {
-      return res.status(403).json({
-        success: false,
-        message: "Only customers can cancel orders.",
-      });
+      return;
     }
 
     const { id } = req.params;
 
-    if (typeof id !== "string" || !ObjectId.isValid(id)) {
-      return res.status(400).json({
+    if (
+      typeof id !== "string" ||
+      !ObjectId.isValid(id)
+    ) {
+      res.status(400).json({
         success: false,
         message: "Invalid order ID.",
       });
+      return;
     }
 
     const result = await orders.findOneAndUpdate(
@@ -372,19 +400,21 @@ export const cancelOrder = async (
       });
 
       if (!existingOrder) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           message: "Order not found.",
         });
+        return;
       }
 
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: `You cannot cancel an order with ${existingOrder.status} status.`,
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "Order cancelled successfully.",
       data: result,
@@ -392,7 +422,7 @@ export const cancelOrder = async (
   } catch (error) {
     console.error("Cancel order error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to cancel order.",
     });

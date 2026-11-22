@@ -48,19 +48,11 @@ try {
 export const db = client.db(DB_NAME);
 await ensureCollections(db);
 
-// Shared collections — import these from route/controller files.
 
-// IMPORTANT: Better Auth stores accounts in the collection named "user"
-// (singular). The legacy "users" collection stays empty, so anything that
-// reads user data (vendor lookups, role checks, admin lists) must use this
-// export — otherwise queries return nothing even when the user exists.
-// (Five controllers and the payment route import it — it must stay exported
-// or the whole server fails to boot with "does not provide an export named
-// 'users'".)
 export const users = db.collection("user");
 export const menus = db.collection("menus");
 export const orders = db.collection("orders");
 // Payment records (Stripe checkout verification + the admin transactions
 // list). Renamed from `payments`; the two importers use this name too.
-export const transactions = db.collection("transactions");
+export const transactions = db.collection("payments");
 

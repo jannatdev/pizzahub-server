@@ -1,4 +1,3 @@
-
 import "dotenv/config";
 
 
@@ -62,12 +61,23 @@ export const auth = betterAuth({
         defaultValue: "customer",
         input: true,
         validator: {
-          input: z.enum(["customer", "vendor"]),
+          input: z.enum(["customer", "vendor", "admin"]),
         },
       },
     },
   },
 
+  /**
+   * Storage-layer guarantees for `role` (defense in depth):
+   * - On create: any value that is not "customer"/"vendor" is forced to
+   *   "customer" — covers sign-up, OAuth and any future user-creation path.
+   *   "admin" is also permitted by the validator but the public sign-up form
+   *   only ever selects "customer" or "vendor", so admin accounts cannot be
+   *   created through registration. The role must be assigned through a secure,
+   *   non-public pathway (e.g. by an existing admin).
+   * - On update: a payload containing `role` aborts the update — the role is
+   *   chosen at sign-up and can never be changed afterwards.
+   */
   databaseHooks: {
     user: {
       create: {

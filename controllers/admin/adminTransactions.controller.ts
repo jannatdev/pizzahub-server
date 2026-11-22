@@ -9,7 +9,7 @@ export const getAdminTransactions = async (
   res: Response
 ): Promise<void> => {
   try {
-    // Newest payments first.
+  
     const records = await transactions
       .find({})
       .sort({ paymentDate: -1 })
@@ -35,6 +35,8 @@ export const getAdminTransactions = async (
       vendors.map((vendor) => [String(vendor._id), vendor])
     );
 
+
+   
     // Format payment records.
     const data = records.map((record) => {
       const vendor =

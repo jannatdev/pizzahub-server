@@ -15,6 +15,7 @@ import vendorMenuRoutes from "./route/vendor/vendorManageMenu.route.ts";
 import vendorOrdersRoutes from "./route/vendor/vendorManageOrder.route.ts";
 
 import paymentRoutes from "./route/payment.route.ts";
+import webhookRoutes from "./route/webhook.route.ts";
 import adminUserRoutes from "./route/admin/adminUsers.route.ts";
 import browseMenuRoutes from "./route/browseMenu.route.ts";
 import adminOverviewRoutes from "./route/admin/adminOverview.route.ts";
@@ -24,6 +25,8 @@ import orderRoutes from "./route/order.route.ts";
 import vendorSubscriptionRoutes from "./route/vendor/subscription.route.ts";
 import vendorOverviewRoutes from "./route/vendor/vendorOverview.route.ts";
 import adminMenuRoutes from "./route/admin/adminMenu.route.ts";
+
+import customerProfileRoutes from "./route/customerProfile.route.ts";
 
 
 const app = express();
@@ -55,6 +58,9 @@ app.use(express.json());
 // Image and menu routes
 app.use("/images", imageRoutes);
 
+// Webhook route for Stripe payments (must be before the json parser)
+app.use("/api/webhook/stripe", webhookRoutes);
+
 app.use("/api/menu", menuRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/admin", adminMenuRoutes);
@@ -68,6 +74,7 @@ app.use("/api/vendor", vendorMenuRoutes);
 app.use("/api/vendor", vendorOrdersRoutes);
 app.use("/api/vendor", vendorSubscriptionRoutes);
 app.use("/api/vendor", vendorOverviewRoutes);
+app.use("/customer", customerProfileRoutes);
 
 
 app.get("/", (req, res) => {

@@ -1,12 +1,46 @@
-
 import express from "express";
-import Stripe from "stripe"; 
-import { transactions, users } from "../config/db.config.ts"; 
+import Stripe from "stripe";
+import { transactions, users } from "../config/db.config.ts";
 import { ObjectId } from "mongodb";
 
 const router = express.Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!); 
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+// Helper: create a Stripe Checkout Session for vendor Premium upgrade
+const createCheckoutSession = async (vendorId: string, userId: string) => {
+  const vendor = await users.findOne({ _id: new ObjectId(vendorId) });
+
+  if (!vendor) {
+    throw new Error("Vendor not found");
+  }
+
+ const session = await stripe.checkout.sessions.create({
+  
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: "Premium Subscription - PizzaHub",
+            description: "Unlimited menu items, Premium badge, featured placement",
+          },
+          unit_amount: 999, // $9.99
+        },
+        quantity: 1,
+      },
+    ],
+    mode: "subscription",
+    metadata: {
+      userId,
+      vendorId,
+    },
+    success_url: `${process.env.CLIENT_URL}/payment-success?sessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.CLIENT_URL}/payment-cancel`,
+  });
+
+  return session;
+};
 
 router.post("/checkout_verify", async (req, res) => {
   try {
@@ -98,7 +132,72 @@ router.post("/checkout_verify", async (req, res) => {
     const message =
       error instanceof Error && error.message
         ? error.message
-        : "Payment verification failed.";
+        : "Payment verification failed."
+
+    return res.status(500).json({
+      success: false,
+      message,
+    });
+  }
+});
+
+// CREATE Checkout Session for vendor Premium upgrade
+router.post("/checkout", async (req, res) => {
+  try {
+    const { vendorId, userId } = req.body ?? {};
+
+    if (!vendorId || !userId) {
+      return res.status(400).json({
+        success: false,
+        message: "vendorId and userId are required.",
+      });
+    }
+
+    const vendor = await users.findOne({ _id: new ObjectId(vendorId) });
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor not found.",
+      });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+    
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "Premium Subscription - PizzaHub",
+              description: "Unlimited menu items, Premium badge, featured placement",
+            },
+            unit_amount: 999, // $9.99
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "subscription",
+      metadata: {
+        userId,
+        vendorId,
+      },
+      success_url: `${process.env.CLIENT_URL}/payment-success?sessionId={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.CLIENT_URL}/payment-cancel`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      sessionId: session.id,
+      url: session.url,
+    });
+  } catch (error) {
+    console.error("Checkout session creation error:", error);
+
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : "Failed to create checkout session."
 
     return res.status(500).json({
       success: false,

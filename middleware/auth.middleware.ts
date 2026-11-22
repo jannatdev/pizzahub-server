@@ -16,16 +16,16 @@ import {
 
 export type UserRole = "admin" | "vendor" | "customer";
 
-export type AuthUser = {
-  id: string;
-  email: string;
+export interface AuthUser {
+  id?: string;
+  email?: string;
   name?: string;
-  role: UserRole;
-};
+  role?: UserRole;
+}
 
-export type AuthedRequest = Request & {
+export interface AuthedRequest extends Request {
   user?: AuthUser;
-};
+}
 
 // --------------------------------------
 // 2. Better Auth JWT configuration
@@ -56,16 +56,17 @@ export const authenticate = async (
   req: Request,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
 
-    // Missing token
+    // Check whether token exists
     if (!authHeader) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "Authentication token is required.",
       });
+      return;
     }
 
     // Validate Bearer format
@@ -76,61 +77,68 @@ export const authenticate = async (
       !token ||
       extra.length > 0
     ) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "Invalid authorization format.",
       });
+      return;
     }
 
-    // Verify signature, expiration, issuer and audience
+    // Verify JWT signature, expiration, issuer and audience
     const { payload } = await jwtVerify(token, JWKS, {
       issuer: AUTH_ISSUER,
       audience: AUTH_AUDIENCE,
     });
 
-    // JWT must have a subject (user ID)
+    // Validate user ID
     if (!payload.sub) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "Invalid authentication token.",
       });
+      return;
     }
 
-    // Validate role
+    // Allowed roles
     const allowedRoles: UserRole[] = [
       "admin",
       "vendor",
       "customer",
     ];
 
+    // Validate JWT role
     if (
-      !payload.role ||
+      typeof payload.role !== "string" ||
       !allowedRoles.includes(payload.role as UserRole)
     ) {
-      return res.status(403).json({
+      res.status(403).json({
         success: false,
         message: "Invalid or unauthorized user role.",
       });
+      return;
     }
 
     // Attach verified identity to request
-    (req as AuthedRequest).user = {
+    const authedReq = req as AuthedRequest;
+
+    authedReq.user = {
       id: payload.sub,
-      email: typeof payload.email === "string"
-        ? payload.email
-        : "",
-      name: typeof payload.name === "string"
-        ? payload.name
-        : undefined,
+      email:
+        typeof payload.email === "string"
+          ? payload.email
+          : undefined,
+      name:
+        typeof payload.name === "string"
+          ? payload.name
+          : undefined,
       role: payload.role as UserRole,
     };
 
-    return next();
-
+    next();
   } catch (error) {
     console.error("JWT verification failed:", error);
 
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       message: "Invalid or expired authentication token.",
     });
@@ -138,7 +146,7 @@ export const authenticate = async (
 };
 
 // --------------------------------------
-// 4. Role-based middleware
+// 4. Role-based authorization middleware
 // --------------------------------------
 
 export const authorizeRoles = (
@@ -148,29 +156,32 @@ export const authorizeRoles = (
     req: Request,
     res: Response,
     next: NextFunction
-  ) => {
+  ): void => {
     const user = (req as AuthedRequest).user;
 
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         message: "You must be logged in.",
       });
+      return;
     }
 
-    if (!roles.includes(user.role)) {
-      return res.status(403).json({
+    if (!user.role || !roles.includes(user.role)) {
+      res.status(403).json({
         success: false,
         message: "You do not have permission to perform this action.",
       });
+      return;
     }
 
-    return next();
+    next();
   };
 };
 
 // --------------------------------------
-// 5. Backward-compatible middleware name
+// 5. Backward-compatible middleware names
 // --------------------------------------
 
 export const requireAuth = authenticate;
+
