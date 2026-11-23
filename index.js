@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
-import Stripe from "stripe";
+
 
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.ts";
