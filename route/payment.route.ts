@@ -5,9 +5,7 @@ import { ObjectId } from "mongodb";
 
 const router = express.Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-11-18.endive",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
 
 // Helper: create a Stripe Checkout Session for vendor Premium upgrade
 const createCheckoutSession = async (vendorId: string, userId: string) => {
