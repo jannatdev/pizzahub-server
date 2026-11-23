@@ -6,7 +6,7 @@ import { ObjectId } from "mongodb";
 const router = express.Router();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-09-30",
+  apiVersion: "2026-11-18.endive",
 });
 
 /**
