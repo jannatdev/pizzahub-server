@@ -1,5 +1,5 @@
+import express, { type Request, type Response, type NextFunction } from "express";
 
-import express from "express";
 import cors from "cors";
 import "dotenv/config";
 
@@ -27,10 +27,11 @@ import vendorOverviewRoutes from "./route/vendor/vendorOverview.route.ts";
 import adminMenuRoutes from "./route/admin/adminMenu.route.ts";
 
 import customerProfileRoutes from "./route/customerProfile.route.ts";
+const PORT = Number(process.env.PORT) || 8000;
 
 
 const app = express();
-const PORT = 8000;
+// const PORT = 8000;
 
 
 // The browser may reach the dev server as localhost OR 127.0.0.1; both origins
@@ -40,11 +41,11 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:3000",
   "http://127.0.0.1:3000",
-].filter(Boolean);
+].filter((origin): origin is string => Boolean(origin));
 
 app.use(
   cors({
-    origin: [...new Set(allowedOrigins)],
+    origin: allowedOrigins,
     credentials: true,
   })
 );
@@ -88,7 +89,10 @@ app.get("/health", (req, res) => {
   });
 });
 
-app.use((err, req, res, next) => {
+app.use(( err: Error,
+    req: Request,
+    res: Response,
+    next: NextFunction) => {
   console.error("Backend error:", err);
 
   if (res.headersSent) {
@@ -101,6 +105,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running at port ${PORT}`);
-});
+// app.listen(PORT, () => {
+//   console.log(`Server is running at port ${PORT}`);
+// });
+
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`PizzaHub server running on port ${PORT}`);
+  });
+}
+
+export default app;
