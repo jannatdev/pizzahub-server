@@ -28,7 +28,6 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
-
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",

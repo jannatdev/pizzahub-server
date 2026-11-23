@@ -184,4 +184,4 @@ export const authorizeRoles = (
 // --------------------------------------
 
 export const requireAuth = authenticate;
-
+export const authMiddleware = authenticate;
